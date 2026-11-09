@@ -1,12 +1,17 @@
 {
   "name": "bhutan-trips-by-druk-asia",
   "version": "1.0.0",
-  "private": true,
+  "mcpName": "io.github.ebizity/bhutan-trips-by-druk-asia",
   "description": "Bhutan Trips by Druk Asia — MCP server for the Druk Asia v1 API (festivals, itineraries, flights, bookings, members, payments, destinations, passengers).",
   "type": "module",
+  "main": "dist/index.js",
   "bin": {
     "bhutan-trips-by-druk-asia": "dist/index.js",
     "bhutan-trips-by-druk-asia-register": "dist/register.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ebizity/bhutan-trips-by-druk-asia.git"
   },
   "files": [
     "dist"
@@ -35,6 +40,9 @@
     "travel"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",
     "dotenv": "^16.4.7",
