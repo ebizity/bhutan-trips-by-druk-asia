@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.ebizity/bhutan-trips-by-druk-asia",
+  "title": "Bhutan Trips by Druk Asia",
+  "description": "Bhutan trip search & booking via the Druk Asia API: festivals, itineraries, flights, bookings.",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/ebizity/bhutan-trips-by-druk-asia",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.drukasia.com/mcp"
+    }
+  ]
+}
