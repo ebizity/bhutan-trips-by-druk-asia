@@ -5,7 +5,7 @@
   "cloudEndpoint": "https://mcp.drukasia.com/mcp",
   "description": "Bhutan Trips by Druk Asia — MCP server for the Druk Asia v1 API (festivals, itineraries, flights, bookings, members, payments, destinations, passengers).",
   "homepage": "https://github.com/ebizity/bhutan-trips-by-druk-asia",
-  "icon": "🏔️",
+  "icon": "https://cdn.drukasia.com/www/images/media/da-icon-highres.webp",
   "identifier": "ebizity-bhutan-trips-by-druk-asia",
   "name": "Bhutan Trips by Druk Asia",
   "prompts": [],
