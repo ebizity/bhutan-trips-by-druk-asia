@@ -1,0 +1,18 @@
+name = "bhutan-trips-by-druk-asia"
+main = "dist/worker.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+DRUKASIA_API_BASE_URL = "https://api.bhutan.pro"
+MCP_PUBLIC_BASE_URL = "https://mcp.drukasia.com"
+# Comma-separated browser origins allowed to call the API (empty = allow all).
+CORS_ORIGINS = "https://chatgpt.com,https://claude.ai"
+
+# OAuth state store.
+[[kv_namespaces]]
+binding = "AUTH_KV"
+id = "bd97151ce7e146f89ca8e01ddb44dcbe"
+
+# JWT signing secret is a secret, not a var. Set it with:
+#   npx wrangler secret put JWT_SECRET

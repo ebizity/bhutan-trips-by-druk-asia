@@ -1,0 +1,52 @@
+{
+  "name": "bhutan-trips-by-druk-asia",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bhutan Trips by Druk Asia — MCP server for the Druk Asia v1 API (festivals, itineraries, flights, bookings, members, payments, destinations, passengers).",
+  "type": "module",
+  "bin": {
+    "bhutan-trips-by-druk-asia": "dist/index.js",
+    "bhutan-trips-by-druk-asia-register": "dist/register.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "register": "node dist/register.js",
+    "register:dev": "tsx src/register.ts",
+    "start": "node dist/index.js",
+    "start:http": "node dist/server.js",
+    "dev:http": "tsx watch src/server.ts",
+    "dev:worker": "wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:dry": "npm run build && wrangler deploy --dry-run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=18.18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "drukasia",
+    "bhutan",
+    "travel"
+  ],
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "dotenv": "^16.4.7",
+    "express": "^5.2.1",
+    "jose": "^6.2.12",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.145.0"
+  }
+}

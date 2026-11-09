@@ -1,0 +1,81 @@
+# Bhutan Trips by Druk Asia — MCP Server
+
+A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that lets AI
+assistants Claude, ChatGPT, Cursor, OpenClaw, Hermes and others search and book Bhutan trips.
+
+[![MCP](https://img.shields.io/badge/MCP-server-6e3fbb)](https://modelcontextprotocol.io)
+
+## ✨ Features
+
+- **Festivals** — Bhutan's festival calendar by year
+- **Itineraries** — day-by-day tours with hotels, activities and live pricing
+- **Flights** — live Drukair availability and pricing
+- **Destinations** — entry/exit ports for bookings
+- **Members** — create and look up travellers
+- **Bookings** — create, fetch and update bookings
+- **Payments** — create Airwallex payments and check status
+
+## 🚀 Quick start
+
+Point your MCP client at:
+
+```
+https://mcp.drukasia.com/mcp
+```
+
+On first use, your client opens a **sign in / sign up** page (OAuth 2.1). Accounts are
+self-serve and your Druk Asia API key is created automatically — you never handle keys.
+
+### Connect in ChatGPT
+
+1. **ChatGPT** (desktop) → **Settings** → **MCP**.
+2. Add a remote server with the URL `https://mcp.drukasia.com/mcp`.
+3. Complete sign-in/sign-up in the browser popup.
+4. Ask: *"Use the Bhutan Trips tools to list festivals in 2026."*
+
+### Connect in Claude
+
+1. **Claude Desktop** → **Settings** → **MCP servers** → **Add remote server** → enter the URL.
+2. Or in **Claude Code**: `/mcp` → add remote → `https://mcp.drukasia.com/mcp`.
+3. Complete the OAuth flow in the browser.
+
+## 🔧 Tools
+
+| Tool | Endpoint | Description |
+| --- | --- | --- |
+| `list_endpoints` | — | Reference of all endpoints and their tools |
+| `list_festivals` | `GET /v1/festivals` | Festival calendar for a year |
+| `list_itineraries` | `GET /v1/itineraries` | Itineraries with party-based pricing |
+| `get_itinerary` | `GET /v1/itineraries/{id}` | Single itinerary by ID |
+| `search_flights` | `GET /v1/flights` | Live flight availability + pricing |
+| `list_destinations` | `GET /v1/destinations` | Entry/exit destination IDs |
+| `create_member` | `POST /v1/members` | Create a member |
+| `get_member` | `GET /v1/members/{id}` | Fetch a member |
+| `get_booking` | `GET /v1/bookings` | Fetch a booking by reference |
+| `create_booking` | `POST /v1/bookings` | Create a booking |
+| `update_booking` | `PATCH /v1/bookings/{booking_ref}` | Update editable booking fields |
+| `create_payment` | `POST /v1/da-payments` | Create an Airwallex payment |
+| `get_payment_status` | `POST /v1/da-payments/status` | Check whether a payment succeeded |
+
+## 💬 Example
+
+> *"Find 7-day cultural itineraries for 2 adults in October 2026, then check flights
+> from Singapore."*
+
+The assistant chains `list_itineraries` → `search_flights` → `list_destinations` →
+`create_member` → `create_booking` → `create_payment` to complete a real booking.
+
+## 🔐 Authentication
+
+The server uses **OAuth 2.1** (authorization code + PKCE). Clients log in and receive a
+short-lived access token; the server maps that token to the user's stored Druk Asia API
+key. Keys never leave the server.
+
+## 🔗 Links
+
+- [Druk Asia](https://www.drukasia.com)
+- [Model Context Protocol](https://modelcontextprotocol.io)
+
+---
+
+© Druk Asia. All rights reserved.
