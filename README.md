@@ -1,21 +1,21 @@
-# Bhutan Trips by Druk Asia — MCP Server
+# Bhutan Trips by Druk Asia - MCP Server
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that lets AI
 assistants Claude, ChatGPT, Cursor, OpenClaw, Hermes and others search and book Bhutan trips.
 
 [![MCP](https://img.shields.io/badge/MCP-server-6e3fbb)](https://modelcontextprotocol.io)
 
-## ✨ Features
+## Features
 
-- **Festivals** — Bhutan's festival calendar by year
-- **Itineraries** — day-by-day tours with hotels, activities and live pricing
-- **Flights** — live Drukair availability and pricing
-- **Destinations** — entry/exit ports for bookings
-- **Members** — create and look up travellers
-- **Bookings** — create, fetch and update bookings
-- **Payments** — create Airwallex payments and check status
+- **Festivals** - Bhutan's festival calendar by year
+- **Itineraries** - day-by-day tours with hotels, activities and live pricing
+- **Flights** - live Drukair availability and pricing
+- **Destinations** - entry/exit ports for bookings
+- **Members** - create and look up travellers
+- **Bookings** - create, fetch and update bookings
+- **Payments** - create payments and check status
 
-## 🚀 Quick start
+## Quick start
 
 Point your MCP client at:
 
@@ -39,7 +39,7 @@ self-serve and your Druk Asia API key is created automatically — you never han
 2. Or in **Claude Code**: `/mcp` → add remote → `https://mcp.drukasia.com/mcp`.
 3. Complete the OAuth flow in the browser.
 
-## 🔧 Tools
+## Tools
 
 | Tool | Endpoint | Description |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ self-serve and your Druk Asia API key is created automatically — you never han
 | `create_payment` | `POST /v1/da-payments` | Create an Airwallex payment |
 | `get_payment_status` | `POST /v1/da-payments/status` | Check whether a payment succeeded |
 
-## 💬 Example
+## Example
 
 > *"Find 7-day cultural itineraries for 2 adults in October 2026, then check flights
 > from Singapore."*
@@ -65,13 +65,13 @@ self-serve and your Druk Asia API key is created automatically — you never han
 The assistant chains `list_itineraries` → `search_flights` → `list_destinations` →
 `create_member` → `create_booking` → `create_payment` to complete a real booking.
 
-## 🔐 Authentication
+## Authentication
 
 The server uses **OAuth 2.1** (authorization code + PKCE). Clients log in and receive a
 short-lived access token; the server maps that token to the user's stored Druk Asia API
 key. Keys never leave the server.
 
-## 🔗 Links
+## Links
 
 - [Druk Asia](https://www.drukasia.com)
 - [Model Context Protocol](https://modelcontextprotocol.io)
