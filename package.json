@@ -34,7 +34,7 @@
     "bhutan",
     "travel"
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",
     "dotenv": "^16.4.7",
