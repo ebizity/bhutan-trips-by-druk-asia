@@ -4,6 +4,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that le
 assistants Claude, ChatGPT, Cursor, OpenClaw, Hermes and others search and book Bhutan trips.
 
 [![MCP](https://img.shields.io/badge/MCP-server-6e3fbb)](https://modelcontextprotocol.io)
+[![MCP Badge](https://lobehub.com/badge/mcp/ebizity-bhutan-trips-by-druk-asia)](https://lobehub.com/mcp/ebizity-bhutan-trips-by-druk-asia)
 
 ## Features
 
