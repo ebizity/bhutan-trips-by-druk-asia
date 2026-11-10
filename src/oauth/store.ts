@@ -29,6 +29,58 @@ export interface PendingAuthorization {
   redirectUri: string;
   codeChallenge: string;
   state?: string;
+  /**
+   * Hex SHA-256 of a random nonce stored in an HttpOnly cookie on the browser
+   * that started /authorize. The login form is only accepted from that browser,
+   * so a login_id link cannot be handed to a victim to sign in on.
+   */
+  browserBindingHash: string;
+  /** Random token echoed in the login form (defence in depth against CSRF). */
+  csrfToken: string;
+}
+
+/** Name of the cookie that binds a pending authorization to one browser. */
+export function bindingCookieName(loginId: string): string {
+  return `__Host-da_login_${loginId}`;
+}
+
+/** Read one cookie from a raw `Cookie` header. */
+export function readCookie(header: string | null | undefined, name: string): string | undefined {
+  for (const part of (header ?? "").split(";")) {
+    const eq = part.indexOf("=");
+    if (eq !== -1 && part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim();
+  }
+  return undefined;
+}
+
+const BLOCKED_REDIRECT_SCHEMES = new Set(["javascript:", "data:", "vbscript:", "file:", "blob:"]);
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * Validate a redirect URI supplied at dynamic client registration:
+ * https anywhere, http only on loopback, custom (native-app) schemes allowed,
+ * script-capable schemes and fragments rejected.
+ */
+export function isAcceptableRedirectUri(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.hash || BLOCKED_REDIRECT_SCHEMES.has(url.protocol)) return false;
+  if (url.protocol === "http:") return LOOPBACK.has(url.hostname);
+  return true;
+}
+
+/** Human-readable destination shown on the consent screen. */
+export function redirectDisplay(value: string): string {
+  try {
+    const url = new URL(value);
+    return url.host ? `${url.protocol}//${url.host}` : `${url.protocol}${url.pathname}`;
+  } catch {
+    return value;
+  }
 }
 
 /**

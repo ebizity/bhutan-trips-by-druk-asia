@@ -41,8 +41,23 @@ function toResult<T>(fn: () => Promise<T>): Promise<CallToolResult> {
 
 const ispopularEnum = z.enum(["true", "false", "1", "0"]);
 
-function bookingFields(required: boolean): ZodRawShape {
-  const base: Record<string, z.ZodTypeAny> = {
+/**
+ * Identifiers that are placed into upstream URL paths or queries. Restricting
+ * the alphabet blocks path tricks such as "..", which would otherwise resolve
+ * `/v1/bookings/..` to `/v1/`.
+ */
+const identifier = (label: string) =>
+  z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{1,64}$/, `${label} may only contain letters, digits, '-' and '_'`);
+
+/** Hints for MCP clients so they can ask the user before acting. */
+const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
+const CREATES = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true } as const;
+const MODIFIES = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true } as const;
+
+function bookingFields(): ZodRawShape {
+  return {
     itinerary_id: z
       .number()
       .int()
@@ -81,13 +96,18 @@ function bookingFields(required: boolean): ZodRawShape {
     total_air_ticket_price: z.number().describe("Total air ticket price."),
     grand_total: z.number().describe("Grand total amount."),
   };
+}
 
-  if (!required) {
-    for (const key of Object.keys(base)) {
-      base[key] = base[key].optional();
-    }
-  }
-  return base;
+/**
+ * Fields update_booking may change. Price, party size and itinerary are
+ * excluded: those values determine what the customer owes, and must not be
+ * rewritten by a model (or a prompt injection) after the booking is created.
+ * To change them, create a new booking.
+ */
+function bookingUpdateFields(): ZodRawShape {
+  const all = bookingFields() as Record<string, z.ZodTypeAny>;
+  const editable = ["tour_start_date", "tour_end_date", "port_entry_id", "port_exit_id"] as const;
+  return Object.fromEntries(editable.map((key) => [key, all[key].optional()]));
 }
 
 const ENDPOINT_REFERENCE = {
@@ -103,8 +123,8 @@ const ENDPOINT_REFERENCE = {
     { method: "GET", path: "/v1/members/{id}", tool: "get_member", params: "id (path)" },
     { method: "GET", path: "/v1/bookings", tool: "get_booking", params: "booking_ref (query)" },
     { method: "POST", path: "/v1/bookings", tool: "create_booking", params: "20 booking fields (see tool schema)" },
-    { method: "PATCH", path: "/v1/bookings/{booking_ref}", tool: "update_booking", params: "booking_ref (path) + partial booking fields" },
-    { method: "POST", path: "/v1/da-payments", tool: "create_payment", params: "online_booking_id, booking_ref_code, amount, payment_type, card fields" },
+    { method: "PATCH", path: "/v1/bookings/{booking_ref}", tool: "update_booking", params: "booking_ref (path) + tour dates / entry and exit ports" },
+    { method: "POST", path: "/v1/da-payments", tool: "create_payment", params: "online_booking_id, booking_ref_code, amount (payment link only)" },
     { method: "POST", path: "/v1/da-payments/status", tool: "get_payment_status", params: "online_booking_id" },
   ],
 };
@@ -114,6 +134,7 @@ export function registerTools(server: McpServer, client: DrukAsiaClient): void {
     "list_endpoints",
     {
       title: "List Druk Asia v1 API endpoints",
+      annotations: READ_ONLY,
       description:
         "Returns a concise reference of all Druk Asia v1 API endpoints and the MCP tool that wraps each one.",
       inputSchema: {},
@@ -125,6 +146,7 @@ export function registerTools(server: McpServer, client: DrukAsiaClient): void {
     "list_festivals",
     {
       title: "List Festivals Calendar",
+      annotations: READ_ONLY,
       description: `Retrieves upcoming festivals in Bhutan for a specified year, with an optional filter for popular festivals. ${API_KEY_NOTE}`,
       inputSchema: {
         year: z
@@ -146,6 +168,7 @@ export function registerTools(server: McpServer, client: DrukAsiaClient): void {
     "list_itineraries",
     {
       title: "List & Price Tour Itineraries",
+      annotations: READ_ONLY,
       description: `Retrieves itineraries with daily breakdown, hotels, and activities, including dynamic quotation pricing based on party composition and optional filters. ${API_KEY_NOTE}`,
       inputSchema: {
         adults: z.number().int().min(1).optional().describe("Number of adult travelers (default 1)."),
@@ -166,6 +189,7 @@ export function registerTools(server: McpServer, client: DrukAsiaClient): void {
     "get_itinerary",
     {
       title: "Get Itinerary by ID",
+      annotations: READ_ONLY,
       description: `Retrieves a single itinerary by its numeric ID with day-by-day detail and pricing for one adult. ${API_KEY_NOTE}`,
       inputSchema: {
         id: z.number().int().min(1).describe("Positive numeric itinerary ID."),
@@ -178,6 +202,7 @@ export function registerTools(server: McpServer, client: DrukAsiaClient): void {
     "search_flights",
     {
       title: "Search Flights & Pricing",
+      annotations: READ_ONLY,
       description: `Searches live Drukair flight availability and calculates flight pricing for the party. Leave return_date empty for one-way. ${API_KEY_NOTE}`,
       inputSchema: {
         departure_airport: z
@@ -210,6 +235,7 @@ export function registerTools(server: McpServer, client: DrukAsiaClient): void {
     "list_destinations",
     {
       title: "List Destinations",
+      annotations: READ_ONLY,
       description: `Returns destination IDs and titles for use as port_entry_id and port_exit_id in bookings. isEntry and isExit indicate whether a destination can be used for entry or exit. ${API_KEY_NOTE}`,
       inputSchema: {},
     },
@@ -220,6 +246,7 @@ export function registerTools(server: McpServer, client: DrukAsiaClient): void {
     "create_member",
     {
       title: "Create Member",
+      annotations: CREATES,
       description: `Creates a member using contact details. IsActive and Status are always set to true by the API. ${API_KEY_NOTE}`,
       inputSchema: {
         email: z.string().email().describe("Member email address."),
@@ -235,9 +262,10 @@ export function registerTools(server: McpServer, client: DrukAsiaClient): void {
     "get_member",
     {
       title: "Get Member by ID",
+      annotations: READ_ONLY,
       description: `Retrieves a member by ID. Password data is never returned. ${API_KEY_NOTE}`,
       inputSchema: {
-        id: z.string().min(1).describe("Member ID."),
+        id: identifier("Member ID").describe("Member ID."),
       },
     },
     async ({ id }) => toResult(() => client.get(`/v1/members/${encodeURIComponent(id)}`)),
@@ -247,9 +275,10 @@ export function registerTools(server: McpServer, client: DrukAsiaClient): void {
     "get_booking",
     {
       title: "Get Booking by Reference",
+      annotations: READ_ONLY,
       description: `Retrieves a booking by its booking reference. ${API_KEY_NOTE}`,
       inputSchema: {
-        booking_ref: z.string().min(1).describe("Booking reference (e.g. DA-26-X7K2PQ)."),
+        booking_ref: identifier("Booking reference").describe("Booking reference (e.g. DA-26-X7K2PQ)."),
       },
     },
     async ({ booking_ref }) => toResult(() => client.get("/v1/bookings", { booking_ref })),
@@ -259,8 +288,9 @@ export function registerTools(server: McpServer, client: DrukAsiaClient): void {
     "create_booking",
     {
       title: "Create Booking",
+      annotations: CREATES,
       description: `Creates a booking and returns the generated booking reference and ID. A member ID must already exist (see create_member), and port_entry_id / port_exit_id must reference valid destinations (see list_destinations). ${API_KEY_NOTE}`,
-      inputSchema: bookingFields(true),
+      inputSchema: bookingFields(),
     },
     async (args) => toResult(() => client.post("/v1/bookings", args)),
   );
@@ -269,10 +299,11 @@ export function registerTools(server: McpServer, client: DrukAsiaClient): void {
     "update_booking",
     {
       title: "Update Booking",
-      description: `Updates one or more editable fields of an existing booking. Id, BookingReference, BookingDate, and MemberId cannot be changed. Send only the fields to update. ${API_KEY_NOTE}`,
+      annotations: MODIFIES,
+      description: `Updates the tour dates and/or entry and exit ports of an existing booking. Send only the fields to update. Prices, party size and itinerary cannot be changed here — create a new booking instead. ${API_KEY_NOTE}`,
       inputSchema: {
-        booking_ref: z.string().min(1).describe("Booking reference to update."),
-        ...bookingFields(false),
+        booking_ref: identifier("Booking reference").describe("Booking reference to update."),
+        ...bookingUpdateFields(),
       },
     },
     async ({ booking_ref, ...body }) =>
@@ -282,32 +313,36 @@ export function registerTools(server: McpServer, client: DrukAsiaClient): void {
   server.registerTool(
     "create_payment",
     {
-      title: "Create Airwallex Payment",
-      description: `Creates a payment for a booking via Airwallex. For payment_type 'auto_fill' the card details are required; for 'payment_link' a shareable payment URL is returned. ${API_KEY_NOTE}`,
+      title: "Create Payment Link",
+      annotations: CREATES,
+      description: `Creates an Airwallex payment link for a booking and returns a URL the traveller opens to pay securely. Never ask the user for card numbers or CVCs in chat — card details are only ever entered on the payment page. ${API_KEY_NOTE}`,
       inputSchema: {
-        online_booking_id: z.string().min(1).describe("OnlineBookings.Id (booking_id from create_booking)."),
-        booking_ref_code: z.string().min(1).describe("Booking reference code, e.g. DA-26-X7K2PQ."),
+        online_booking_id: identifier("Booking ID").describe("OnlineBookings.Id (booking_id from create_booking)."),
+        booking_ref_code: identifier("Booking reference").describe("Booking reference code, e.g. DA-26-X7K2PQ."),
         amount: z.number().positive().describe("Payment amount in USD."),
-        payment_type: z
-          .enum(["auto_fill", "payment_link"])
-          .describe("auto_fill charges a card directly; payment_link generates a payment URL."),
-        card_number: z.string().optional().describe("Card number (required for auto_fill)."),
-        expiry_month: z.string().optional().describe("Card expiry month (required for auto_fill)."),
-        expiry_year: z.string().optional().describe("Card expiry year (required for auto_fill)."),
-        cvc: z.string().optional().describe("Card CVC (required for auto_fill)."),
-        name: z.string().optional().describe("Cardholder name (required for auto_fill)."),
       },
     },
-    async (args) => toResult(() => client.post("/v1/da-payments", args)),
+    // Card data must never pass through the model/MCP layer (PCI DSS), so the
+    // direct-charge ("auto_fill") mode is not exposed: payment links only.
+    async ({ online_booking_id, booking_ref_code, amount }) =>
+      toResult(() =>
+        client.post("/v1/da-payments", {
+          online_booking_id,
+          booking_ref_code,
+          amount,
+          payment_type: "payment_link",
+        }),
+      ),
   );
 
   server.registerTool(
     "get_payment_status",
     {
       title: "Get Payment Status",
+      annotations: READ_ONLY,
       description: `Checks whether a booking's payment has succeeded. ${API_KEY_NOTE}`,
       inputSchema: {
-        online_booking_id: z.string().min(1).describe("OnlineBookings.Id (booking_id from create_booking)."),
+        online_booking_id: identifier("Booking ID").describe("OnlineBookings.Id (booking_id from create_booking)."),
       },
     },
     async ({ online_booking_id }) =>

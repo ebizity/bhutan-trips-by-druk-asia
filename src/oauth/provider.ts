@@ -12,23 +12,36 @@ import type {
   OAuthTokens,
   OAuthTokenRevocationRequest,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
-import type { MemoryStore } from "./store.js";
+import { InvalidClientMetadataError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
+import { bindingCookieName, isAcceptableRedirectUri, type MemoryStore } from "./store.js";
+import { loadJwtSecret } from "./secret.js";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "dev-secret-change-me");
 const ACCESS_TOKEN_TTL_SEC = 60 * 60; // 1 hour
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const AUTH_CODE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const PENDING_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export class OAuthProvider implements OAuthServerProvider {
+  private readonly jwtSecret: Uint8Array;
+
   constructor(
     private readonly store: MemoryStore,
     private readonly issuerUrl: URL,
-  ) {}
+    jwtSecret: string | undefined = process.env.JWT_SECRET,
+  ) {
+    // Throws if JWT_SECRET is missing or weak — never fall back to a known value.
+    this.jwtSecret = loadJwtSecret(jwtSecret);
+  }
 
   get clientsStore(): OAuthRegisteredClientsStore {
     return {
       getClient: (clientId) => this.store.clients.get(clientId),
       registerClient: (client) => {
+        if (!client.redirect_uris.every((u) => isAcceptableRedirectUri(String(u)))) {
+          throw new InvalidClientMetadataError(
+            "redirect_uris must be https (or http on loopback) or a native-app scheme",
+          );
+        }
         const full: OAuthClientInformationFull = {
           ...client,
           client_id: randomUUID(),
@@ -50,12 +63,23 @@ export class OAuthProvider implements OAuthServerProvider {
     res: Response,
   ): Promise<void> {
     const loginId = randomUUID();
+    const browserNonce = randomBytes(32).toString("base64url");
     this.store.pendingAuthorizations.set(loginId, {
       clientId: client.client_id,
       redirectUri: params.redirectUri,
       codeChallenge: params.codeChallenge,
       state: params.state,
+      browserBindingHash: createHash("sha256").update(browserNonce).digest("hex"),
+      csrfToken: randomBytes(32).toString("base64url"),
     });
+    // Pending authorizations are in memory; drop them once they expire.
+    setTimeout(() => this.store.pendingAuthorizations.delete(loginId), PENDING_TTL_MS).unref();
+
+    // Bind the login to this browser so the login_id link can't be replayed elsewhere.
+    res.append(
+      "Set-Cookie",
+      `${bindingCookieName(loginId)}=${browserNonce}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${PENDING_TTL_MS / 1000}`,
+    );
     const loginUrl = new URL("/oauth/login", this.issuerUrl);
     loginUrl.searchParams.set("login_id", loginId);
     res.redirect(loginUrl.toString());
@@ -136,7 +160,8 @@ export class OAuthProvider implements OAuthServerProvider {
   }
 
   async verifyAccessToken(token: string): Promise<AuthInfo> {
-    const { payload } = await jwtVerify(token, JWT_SECRET, {
+    const { payload } = await jwtVerify(token, this.jwtSecret, {
+      algorithms: ["HS256"],
       issuer: this.issuerUrl.toString(),
       audience: this.issuerUrl.toString(),
     });
@@ -178,6 +203,6 @@ export class OAuthProvider implements OAuthServerProvider {
       .setAudience(this.issuerUrl.toString())
       .setIssuedAt()
       .setExpirationTime(`${ACCESS_TOKEN_TTL_SEC}s`)
-      .sign(JWT_SECRET);
+      .sign(this.jwtSecret);
   }
 }
