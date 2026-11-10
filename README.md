@@ -14,7 +14,7 @@ assistants Claude, ChatGPT, Cursor, OpenClaw, Hermes and others search and book 
 - **Destinations** - entry/exit ports for bookings
 - **Members** - create and look up travellers
 - **Bookings** - create, fetch and update bookings
-- **Payments** - create payments and check status
+- **Payments** - create secure payment links and check status (card details are never entered in chat)
 
 ## Quick start
 
@@ -54,8 +54,8 @@ self-serve and your Druk Asia API key is created automatically — you never han
 | `get_member` | `GET /v1/members/{id}` | Fetch a member |
 | `get_booking` | `GET /v1/bookings` | Fetch a booking by reference |
 | `create_booking` | `POST /v1/bookings` | Create a booking |
-| `update_booking` | `PATCH /v1/bookings/{booking_ref}` | Update editable booking fields |
-| `create_payment` | `POST /v1/da-payments` | Create an Airwallex payment |
+| `update_booking` | `PATCH /v1/bookings/{booking_ref}` | Change tour dates or entry/exit ports |
+| `create_payment` | `POST /v1/da-payments` | Create an Airwallex payment link |
 | `get_payment_status` | `POST /v1/da-payments/status` | Check whether a payment succeeded |
 
 > **Read vs write:** Most tools are read-only. `create_member`, `create_booking`,
@@ -75,6 +75,9 @@ The server uses **OAuth 2.1** (authorization code + PKCE). Clients log in and re
 short-lived access token; the server maps that token to the user's stored Druk Asia API
 key. Keys never leave the server.
 
+Before granting access, the sign-in page shows which app is asking and where you will be
+sent back to. A sign-in link only works in the browser that started the connection.
+
 ## Configuration
 
 | Variable | Required | Default | Description |
@@ -83,7 +86,7 @@ key. Keys never leave the server.
 | `DRUKASIA_API_BASE_URL` | no | `https://api.bhutan.pro` | Base URL of the Druk Asia v1 API |
 | `MCP_PUBLIC_BASE_URL` | hosted | request origin | Public base URL used in OAuth metadata |
 | `CORS_ORIGINS` | no | allow all | Comma-separated browser origins allowed to call the API |
-| `JWT_SECRET` | hosted | dev fallback | OAuth token-signing secret (`wrangler secret put JWT_SECRET`) |
+| `JWT_SECRET` | hosted | — (required) | OAuth token-signing secret, at least 32 random bytes (`openssl rand -base64 48 \| npx wrangler secret put JWT_SECRET`). The server refuses OAuth requests without it. |
 
 ## License
 

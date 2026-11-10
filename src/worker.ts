@@ -72,7 +72,16 @@ export async function fetchHandler(request: Request, env: WorkerEnv): Promise<Re
   const baseUrl = (env.DRUKASIA_API_BASE_URL ?? "https://api.bhutan.pro").replace(/\/+$/, "");
   const publicBase = normalizeBaseUrl(env.MCP_PUBLIC_BASE_URL ?? url.origin);
   const store = env.AUTH_KV ? new KvStore(env.AUTH_KV) : null;
-  const oauth = store ? new WorkerOAuthService(store, env, publicBase) : null;
+  let oauth: WorkerOAuthService | null = null;
+  if (store) {
+    try {
+      oauth = new WorkerOAuthService(store, env, publicBase);
+    } catch (err) {
+      // Fail closed: never run the OAuth server (or accept tokens) with a weak secret.
+      console.error("OAuth disabled:", err instanceof Error ? err.message : err);
+      return json({ error: "Server is misconfigured. Please try again later." }, 503);
+    }
+  }
   const limiter = env.AUTH_KV ? new RateLimiter(env.AUTH_KV) : null;
 
   const rateLimit = async (name: string, max: number, windowSec: number): Promise<Response | null> => {

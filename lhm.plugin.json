@@ -28,6 +28,10 @@
         "properties": {},
         "$schema": "http://json-schema.org/draft-07/schema#"
       },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
       "execution": {
         "taskSupport": "forbidden"
       }
@@ -46,21 +50,24 @@
             "description": "Calendar year to fetch festivals for (e.g. 2026)."
           },
           "ispopular": {
+            "description": "Filter popular festivals only: 'true', 'false', '1', or '0'.",
             "type": "string",
             "enum": [
-              "true",
-              "false",
+              "0",
               "1",
-              "0"
-            ],
-            "description": "Filter popular festivals only: 'true', 'false', '1', or '0'."
+              "true",
+              "false"
+            ]
           }
         },
         "required": [
           "year"
         ],
-        "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
       },
       "execution": {
         "taskSupport": "forbidden"
@@ -74,37 +81,45 @@
         "type": "object",
         "properties": {
           "adults": {
+            "description": "Number of adult travelers (default 1).",
             "type": "integer",
             "minimum": 1,
-            "description": "Number of adult travelers (default 1)."
+            "maximum": 9007199254740991
           },
           "children": {
+            "description": "Number of child travelers (default 0).",
             "type": "integer",
             "minimum": 0,
-            "description": "Number of child travelers (default 0)."
+            "maximum": 9007199254740991
           },
           "infants": {
+            "description": "Number of infant travelers (default 0).",
             "type": "integer",
             "minimum": 0,
-            "description": "Number of infant travelers (default 0)."
+            "maximum": 9007199254740991
           },
           "days": {
+            "description": "Filter itineraries by duration in days.",
             "type": "integer",
             "minimum": 1,
-            "description": "Filter itineraries by duration in days."
+            "maximum": 9007199254740991
           },
           "itinerary_category": {
-            "type": "string",
-            "description": "Optional English itinerary category URL, e.g. 'cultural'."
+            "description": "Optional English itinerary category URL, e.g. 'cultural'.",
+            "type": "string"
           },
           "single_rooms": {
+            "description": "Number of single rooms requested.",
             "type": "integer",
             "minimum": 0,
-            "description": "Number of single rooms requested."
+            "maximum": 9007199254740991
           }
         },
-        "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
       },
       "execution": {
         "taskSupport": "forbidden"
@@ -120,14 +135,18 @@
           "id": {
             "type": "integer",
             "minimum": 1,
+            "maximum": 9007199254740991,
             "description": "Positive numeric itinerary ID."
           }
         },
         "required": [
           "id"
         ],
-        "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
       },
       "execution": {
         "taskSupport": "forbidden"
@@ -153,35 +172,41 @@
             "description": "Arrival airport 3-letter IATA code (e.g. PBH)."
           },
           "departure_date": {
-            "type": "string",
-            "description": "Departure date YYYY-MM-DD (default 2026-12-01)."
+            "description": "Departure date YYYY-MM-DD (default 2026-12-01).",
+            "type": "string"
           },
           "return_date": {
-            "type": "string",
-            "description": "Return date YYYY-MM-DD (default 2026-12-07). Omit for one-way."
+            "description": "Return date YYYY-MM-DD (default 2026-12-07). Omit for one-way.",
+            "type": "string"
           },
           "adults": {
+            "description": "Adult passengers (default 1).",
             "type": "integer",
             "minimum": 1,
-            "description": "Adult passengers (default 1)."
+            "maximum": 9007199254740991
           },
           "children": {
+            "description": "Child passengers (default 0).",
             "type": "integer",
             "minimum": 0,
-            "description": "Child passengers (default 0)."
+            "maximum": 9007199254740991
           },
           "infants": {
+            "description": "Infant passengers (default 0).",
             "type": "integer",
             "minimum": 0,
-            "description": "Infant passengers (default 0)."
+            "maximum": 9007199254740991
           }
         },
         "required": [
           "departure_airport",
           "arrival_airport"
         ],
-        "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
       },
       "execution": {
         "taskSupport": "forbidden"
@@ -195,6 +220,10 @@
         "type": "object",
         "properties": {},
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
       },
       "execution": {
         "taskSupport": "forbidden"
@@ -210,6 +239,7 @@
           "email": {
             "type": "string",
             "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
             "description": "Member email address."
           },
           "fullname": {
@@ -234,8 +264,13 @@
           "phone_country_code",
           "phone_number"
         ],
-        "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
       },
       "execution": {
         "taskSupport": "forbidden"
@@ -250,15 +285,18 @@
         "properties": {
           "id": {
             "type": "string",
-            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
             "description": "Member ID."
           }
         },
         "required": [
           "id"
         ],
-        "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
       },
       "execution": {
         "taskSupport": "forbidden"
@@ -273,15 +311,18 @@
         "properties": {
           "booking_ref": {
             "type": "string",
-            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
             "description": "Booking reference (e.g. DA-26-X7K2PQ)."
           }
         },
         "required": [
           "booking_ref"
         ],
-        "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
       },
       "execution": {
         "taskSupport": "forbidden"
@@ -296,6 +337,8 @@
         "properties": {
           "itinerary_id": {
             "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
             "description": "Numeric itinerary ID (from list_itineraries or get_itinerary)."
           },
           "tour_start_date": {
@@ -308,10 +351,14 @@
           },
           "port_entry_id": {
             "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
             "description": "Arrival port Destination.Id. Must reference a destination where isEntry = 1. See list_destinations."
           },
           "port_exit_id": {
             "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
             "description": "Departure port Destination.Id. Must reference a destination where isExit = 1. See list_destinations."
           },
           "member_id": {
@@ -320,26 +367,38 @@
           },
           "total_adult_pax": {
             "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
             "description": "Total adult passengers."
           },
           "total_child_pax": {
             "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
             "description": "Total child passengers."
           },
           "total_infant_pax": {
             "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
             "description": "Total infant passengers."
           },
           "total_adult_air_ticket": {
             "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
             "description": "Total adult air tickets."
           },
           "total_child_air_ticket": {
             "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
             "description": "Total child air tickets."
           },
           "total_infant_air_ticket": {
             "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
             "description": "Total infant air tickets."
           },
           "is_trekking_group": {
@@ -397,8 +456,13 @@
           "total_air_ticket_price",
           "grand_total"
         ],
-        "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
       },
       "execution": {
         "taskSupport": "forbidden"
@@ -407,18 +471,14 @@
     {
       "name": "update_booking",
       "title": "Update Booking",
-      "description": "Updates one or more editable fields of an existing booking. Id, BookingReference, BookingDate, and MemberId cannot be changed. Send only the fields to update. Requires a valid Druk Asia API key (sent automatically via the `x-api-key` header).",
+      "description": "Updates the tour dates and/or entry and exit ports of an existing booking. Send only the fields to update. Prices, party size and itinerary cannot be changed here — create a new booking instead. Requires a valid Druk Asia API key (sent automatically via the `x-api-key` header).",
       "inputSchema": {
         "type": "object",
         "properties": {
           "booking_ref": {
             "type": "string",
-            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
             "description": "Booking reference to update."
-          },
-          "itinerary_id": {
-            "type": "integer",
-            "description": "Numeric itinerary ID (from list_itineraries or get_itinerary)."
           },
           "tour_start_date": {
             "type": "string",
@@ -430,78 +490,27 @@
           },
           "port_entry_id": {
             "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
             "description": "Arrival port Destination.Id. Must reference a destination where isEntry = 1. See list_destinations."
           },
           "port_exit_id": {
             "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
             "description": "Departure port Destination.Id. Must reference a destination where isExit = 1. See list_destinations."
-          },
-          "member_id": {
-            "type": "string",
-            "description": "Member ID. Create one first with create_member if not done yet."
-          },
-          "total_adult_pax": {
-            "type": "integer",
-            "description": "Total adult passengers."
-          },
-          "total_child_pax": {
-            "type": "integer",
-            "description": "Total child passengers."
-          },
-          "total_infant_pax": {
-            "type": "integer",
-            "description": "Total infant passengers."
-          },
-          "total_adult_air_ticket": {
-            "type": "integer",
-            "description": "Total adult air tickets."
-          },
-          "total_child_air_ticket": {
-            "type": "integer",
-            "description": "Total child air tickets."
-          },
-          "total_infant_air_ticket": {
-            "type": "integer",
-            "description": "Total infant air tickets."
-          },
-          "is_trekking_group": {
-            "type": "boolean",
-            "description": "Whether this booking is a trekking group."
-          },
-          "single_supplement_cost": {
-            "type": "number",
-            "description": "Single room supplement cost."
-          },
-          "trekking_cost": {
-            "type": "number",
-            "description": "Trekking cost."
-          },
-          "total_visa_cost": {
-            "type": "number",
-            "description": "Total visa cost."
-          },
-          "total_land_tour_price": {
-            "type": "number",
-            "description": "Total land tour price."
-          },
-          "credit_card_charge": {
-            "type": "number",
-            "description": "Credit card processing charge."
-          },
-          "total_air_ticket_price": {
-            "type": "number",
-            "description": "Total air ticket price."
-          },
-          "grand_total": {
-            "type": "number",
-            "description": "Grand total amount."
           }
         },
         "required": [
           "booking_ref"
         ],
-        "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       },
       "execution": {
         "taskSupport": "forbidden"
@@ -509,63 +518,39 @@
     },
     {
       "name": "create_payment",
-      "title": "Create Airwallex Payment",
-      "description": "Creates a payment for a booking via Airwallex. For payment_type 'auto_fill' the card details are required; for 'payment_link' a shareable payment URL is returned. Requires a valid Druk Asia API key (sent automatically via the `x-api-key` header).",
+      "title": "Create Payment Link",
+      "description": "Creates an Airwallex payment link for a booking and returns a URL the traveller opens to pay securely. Never ask the user for card numbers or CVCs in chat — card details are only ever entered on the payment page. Requires a valid Druk Asia API key (sent automatically via the `x-api-key` header).",
       "inputSchema": {
         "type": "object",
         "properties": {
           "online_booking_id": {
             "type": "string",
-            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
             "description": "OnlineBookings.Id (booking_id from create_booking)."
           },
           "booking_ref_code": {
             "type": "string",
-            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
             "description": "Booking reference code, e.g. DA-26-X7K2PQ."
           },
           "amount": {
             "type": "number",
             "exclusiveMinimum": 0,
             "description": "Payment amount in USD."
-          },
-          "payment_type": {
-            "type": "string",
-            "enum": [
-              "auto_fill",
-              "payment_link"
-            ],
-            "description": "auto_fill charges a card directly; payment_link generates a payment URL."
-          },
-          "card_number": {
-            "type": "string",
-            "description": "Card number (required for auto_fill)."
-          },
-          "expiry_month": {
-            "type": "string",
-            "description": "Card expiry month (required for auto_fill)."
-          },
-          "expiry_year": {
-            "type": "string",
-            "description": "Card expiry year (required for auto_fill)."
-          },
-          "cvc": {
-            "type": "string",
-            "description": "Card CVC (required for auto_fill)."
-          },
-          "name": {
-            "type": "string",
-            "description": "Cardholder name (required for auto_fill)."
           }
         },
         "required": [
           "online_booking_id",
           "booking_ref_code",
-          "amount",
-          "payment_type"
+          "amount"
         ],
-        "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
       },
       "execution": {
         "taskSupport": "forbidden"
@@ -580,20 +565,23 @@
         "properties": {
           "online_booking_id": {
             "type": "string",
-            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
             "description": "OnlineBookings.Id (booking_id from create_booking)."
           }
         },
         "required": [
           "online_booking_id"
         ],
-        "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
       },
       "execution": {
         "taskSupport": "forbidden"
       }
     }
   ],
-  "version": "1.0.1"
+  "version": "1.0.2"
 }

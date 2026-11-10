@@ -1,8 +1,23 @@
 import { SignJWT, jwtVerify } from "jose";
 import type { OAuthClientInformationFull, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { KvStore } from "./kvStore.js";
-import { brand, esc, layout } from "./pages.js";
-import type { PendingAuthorization, StoredUser } from "./store.js";
+import {
+  AUTH_PAGE_HEADERS,
+  brand,
+  esc,
+  layout,
+  loginConsentPage,
+  loginLinkInvalidPage,
+} from "./pages.js";
+import {
+  bindingCookieName,
+  isAcceptableRedirectUri,
+  readCookie,
+  redirectDisplay,
+  type PendingAuthorization,
+  type StoredUser,
+} from "./store.js";
+import { loadJwtSecret } from "./secret.js";
 
 const ACCESS_TOKEN_TTL_SEC = 60 * 60; // 1 hour
 const REFRESH_TOKEN_TTL_SEC = 30 * 24 * 60 * 60; // 30 days
@@ -112,11 +127,28 @@ function json(body: unknown, status = 200, extraHeaders: Record<string, string> 
   });
 }
 
-function html(status: number, body: string): Response {
+function html(status: number, body: string, extraHeaders: Record<string, string> = {}): Response {
   return new Response(body, {
     status,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
+    headers: { "Content-Type": "text/html; charset=utf-8", ...AUTH_PAGE_HEADERS, ...extraHeaders },
   });
+}
+
+/** 302 redirect whose headers stay mutable (Response.redirect() headers are immutable). */
+function redirect(location: string, extraHeaders: Record<string, string> = {}): Response {
+  return new Response(null, {
+    status: 302,
+    headers: { Location: location, "Cache-Control": "no-store", ...extraHeaders },
+  });
+}
+
+function bindingCookie(loginId: string, value: string, maxAgeSec: number): string {
+  return `${bindingCookieName(loginId)}=${value}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}`;
+}
+
+async function sameSecret(candidate: string, expectedHashHex: string): Promise<boolean> {
+  if (!candidate || !expectedHashHex) return false;
+  return timingSafeEqual(await sha256(candidate), fromHex(expectedHashHex));
 }
 
 export interface WorkerOAuthEnv {
@@ -137,7 +169,8 @@ export class WorkerOAuthService {
     private readonly env: WorkerOAuthEnv,
     publicBaseUrl: string,
   ) {
-    this.jwtSecret = new TextEncoder().encode(env.JWT_SECRET || "dev-secret-change-me");
+    // Throws if JWT_SECRET is missing or weak — never fall back to a known value.
+    this.jwtSecret = loadJwtSecret(env.JWT_SECRET);
     this.issuer = normalizeBaseUrl(publicBaseUrl);
   }
 
@@ -173,55 +206,68 @@ export class WorkerOAuthService {
     const state = url.searchParams.get("state") ?? undefined;
     const responseType = url.searchParams.get("response_type") ?? "";
 
+    // Phase 1: until client_id and redirect_uri are validated, errors must be
+    // shown directly — never redirect to an unverified URI (open redirect).
+    const client = clientId ? await this.store.getClient(clientId) : null;
+    if (!client) return this.authorizeErrorPage("Unknown or missing client_id.");
+    const redirectOk =
+      isAcceptableRedirectUri(redirectUri) &&
+      client.redirect_uris.some((registered) => redirectUriMatches(redirectUri, registered));
+    if (!redirectOk) {
+      return this.authorizeErrorPage("redirect_uri is missing or not registered for this client.");
+    }
+
+    // Phase 2: redirect_uri is trusted; protocol errors go back to the client.
     const fail = (error: string, description: string) =>
       this.authorizeError(redirectUri, state, error, description);
 
     if (responseType !== "code") return fail("unsupported_response_type", "Only code is supported");
-    const client = await this.store.getClient(clientId);
-    if (!client) return fail("unauthorized_client", "Unknown client_id");
-    const redirectOk = client.redirect_uris.some((registered) =>
-      redirectUriMatches(redirectUri, registered),
-    );
-    if (!redirectOk) {
-      return fail("invalid_request", "redirect_uri is not registered for this client");
-    }
     if (method !== "S256") return fail("invalid_request", "code_challenge_method must be S256");
     if (!codeChallenge) return fail("invalid_request", "code_challenge is required");
 
     const loginId = crypto.randomUUID();
-    const pending: PendingAuthorization = { clientId, redirectUri, codeChallenge, state };
+    const browserNonce = randomToken();
+    const pending: PendingAuthorization = {
+      clientId,
+      redirectUri,
+      codeChallenge,
+      state,
+      browserBindingHash: toHex(await sha256(browserNonce)),
+      csrfToken: randomToken(),
+    };
     await this.store.putPending(loginId, pending, PENDING_TTL_SEC);
 
     const loginUrl = new URL(`${this.issuer}/oauth/login`);
     loginUrl.searchParams.set("login_id", loginId);
-    return Response.redirect(loginUrl.toString(), 302);
+    return redirect(loginUrl.toString(), {
+      "Set-Cookie": bindingCookie(loginId, browserNonce, PENDING_TTL_SEC),
+    });
   }
 
-  loginPage(request: Request): Response {
+  /** True if this request comes from the browser that started the authorization. */
+  private async isBoundBrowser(request: Request, loginId: string, pending: PendingAuthorization): Promise<boolean> {
+    const nonce = readCookie(request.headers.get("Cookie"), bindingCookieName(loginId));
+    return sameSecret(nonce ?? "", pending.browserBindingHash);
+  }
+
+  async loginPage(request: Request): Promise<Response> {
     const params = new URL(request.url).searchParams;
     const loginId = params.get("login_id") ?? "";
-    const email = params.get("email") ?? "";
-    const signedUp = params.get("signed_up") === "1";
+    const pending = loginId ? await this.store.getPending(loginId) : null;
+    if (!pending || !(await this.isBoundBrowser(request, loginId, pending))) {
+      return html(400, loginLinkInvalidPage());
+    }
+    const client = await this.store.getClient(pending.clientId);
     return html(
       200,
-      layout(
-        "Sign in",
-        `<div class="card">
-          ${brand()}
-          <h1>Sign in</h1>
-          <p class="lead">Sign in to continue.</p>
-          ${signedUp ? '<div class="note">Account created — please sign in.</div>' : ""}
-          <form method="POST" action="/oauth/login">
-            <input type="hidden" name="login_id" value="${esc(loginId)}" />
-            <label for="email">Email</label>
-            <input id="email" name="email" type="email" value="${esc(email)}" placeholder="you@example.com" required />
-            <label for="password">Password</label>
-            <input id="password" name="password" type="password" placeholder="••••••••" required />
-            <button class="btn" type="submit">Sign in</button>
-          </form>
-          <p class="foot">No account? <a href="/oauth/signup?login_id=${encodeURIComponent(loginId)}">Create one</a></p>
-        </div>`,
-      ),
+      loginConsentPage({
+        loginId,
+        csrfToken: pending.csrfToken,
+        clientName: typeof client?.client_name === "string" ? client.client_name : undefined,
+        redirectTo: redirectDisplay(pending.redirectUri),
+        email: params.get("email") ?? "",
+        signedUp: params.get("signed_up") === "1",
+      }),
     );
   }
 
@@ -231,12 +277,41 @@ export class WorkerOAuthService {
     const email = (body.get("email") ?? "").trim().toLowerCase();
     const password = body.get("password") ?? "";
 
-    const pending = await this.store.getPending(loginId);
-    if (!pending) return html(400, "Invalid or expired login session.");
+    const pending = loginId ? await this.store.getPending(loginId) : null;
+    if (
+      !pending ||
+      !(await this.isBoundBrowser(request, loginId, pending)) ||
+      body.get("csrf_token") !== pending.csrfToken
+    ) {
+      return html(400, loginLinkInvalidPage());
+    }
+    const clearCookie = { "Set-Cookie": bindingCookie(loginId, "", 0) };
+
+    if (body.get("decision") === "deny") {
+      await this.store.deletePending(loginId);
+      const denied = new URL(pending.redirectUri);
+      denied.searchParams.set("error", "access_denied");
+      denied.searchParams.set("error_description", "The user denied the request");
+      if (pending.state) denied.searchParams.set("state", pending.state);
+      return redirect(denied.toString(), clearCookie);
+    }
 
     const user = await this.store.getUserByEmail(email);
     if (!user || !(await verifyPassword(password, user.salt, user.passwordHash))) {
-      return html(401, "Invalid email or password.");
+      const back = new URL(`${this.issuer}/oauth/login`);
+      back.searchParams.set("login_id", loginId);
+      return html(
+        401,
+        layout(
+          "Sign in failed",
+          `<div class="card">
+            ${brand()}
+            <h1>Sign in failed</h1>
+            <div class="error">Invalid email or password.</div>
+            <a class="btn" href="${esc(back.pathname + back.search)}">Try again</a>
+          </div>`,
+        ),
+      );
     }
 
     const code = `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "");
@@ -253,10 +328,10 @@ export class WorkerOAuthService {
     );
     await this.store.deletePending(loginId);
 
-    const redirect = new URL(pending.redirectUri);
-    redirect.searchParams.set("code", code);
-    if (pending.state) redirect.searchParams.set("state", pending.state);
-    return Response.redirect(redirect.toString(), 302);
+    const target = new URL(pending.redirectUri);
+    target.searchParams.set("code", code);
+    if (pending.state) target.searchParams.set("state", pending.state);
+    return redirect(target.toString(), clearCookie);
   }
 
   async token(request: Request): Promise<Response> {
@@ -301,10 +376,21 @@ export class WorkerOAuthService {
     } catch {
       return json({ error: "invalid_request" }, 400);
     }
-    const redirectUris = Array.isArray(body.redirect_uris)
-      ? (body.redirect_uris as string[]).filter((u) => typeof u === "string")
-      : [];
-    if (redirectUris.length === 0) return json({ error: "invalid_redirect_uri" }, 400);
+    const rawUris: unknown[] = Array.isArray(body.redirect_uris) ? body.redirect_uris : [];
+    const redirectUris = rawUris.filter((u): u is string => typeof u === "string");
+    if (
+      redirectUris.length === 0 ||
+      redirectUris.length !== rawUris.length ||
+      !redirectUris.every(isAcceptableRedirectUri)
+    ) {
+      return json(
+        {
+          error: "invalid_redirect_uri",
+          error_description: "redirect_uris must be https (or http on loopback) or a native-app scheme",
+        },
+        400,
+      );
+    }
 
     const client: OAuthClientInformationFull = {
       ...(body as Omit<OAuthClientInformationFull, "client_id">),
@@ -326,9 +412,9 @@ export class WorkerOAuthService {
     const email = String(body.email ?? "").trim().toLowerCase();
     const password = String(body.password ?? "");
     const fullname = String(body.fullname ?? "").trim();
-    const providedKey = String(body.drukasia_api_key ?? "").trim();
-
-    const result = await this.createUser(email, password, fullname, providedKey);
+    // A caller-supplied Druk Asia key is deliberately not accepted: every
+    // account gets a key minted for it by the upstream API.
+    const result = await this.createUser(email, password, fullname);
     if (!result.ok) return json({ error: result.message }, result.status);
     return json({ user_id: result.user.id, email: result.user.email }, 201);
   }
@@ -366,7 +452,7 @@ export class WorkerOAuthService {
     const password = body.get("password") ?? "";
     const fullname = (body.get("fullname") ?? "").trim();
 
-    const result = await this.createUser(email, password, fullname, "");
+    const result = await this.createUser(email, password, fullname);
     if (!result.ok) {
       return html(
         result.status,
@@ -382,18 +468,17 @@ export class WorkerOAuthService {
       );
     }
 
-    const redirect = new URL(`${this.issuer}/oauth/login`);
-    redirect.searchParams.set("login_id", loginId);
-    redirect.searchParams.set("email", email);
-    redirect.searchParams.set("signed_up", "1");
-    return Response.redirect(redirect.toString(), 302);
+    const next = new URL(`${this.issuer}/oauth/login`);
+    next.searchParams.set("login_id", loginId);
+    next.searchParams.set("email", email);
+    next.searchParams.set("signed_up", "1");
+    return redirect(next.toString());
   }
 
   private async createUser(
     email: string,
     password: string,
     fullname: string,
-    providedKey: string,
   ): Promise<{ ok: true; user: StoredUser } | { ok: false; status: number; message: string }> {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return { ok: false, status: 400, message: "Please enter a valid email address." };
@@ -408,8 +493,8 @@ export class WorkerOAuthService {
       return { ok: false, status: 409, message: "An account with this email already exists." };
     }
 
-    let apiKey = providedKey;
-    if (!apiKey) {
+    let apiKey: string;
+    {
       const upstream = (this.env.DRUKASIA_API_BASE_URL ?? "https://api.bhutan.pro").replace(/\/+$/, "");
       const resp = await fetch(`${upstream}/v1/auth/bots/register`, {
         method: "POST",
@@ -450,6 +535,7 @@ export class WorkerOAuthService {
 
   async verifyAccessToken(token: string): Promise<{ userId: string }> {
     const { payload } = await jwtVerify(token, this.jwtSecret, {
+      algorithms: ["HS256"],
       issuer: this.issuer,
       audience: this.issuer,
     });
@@ -510,11 +596,25 @@ export class WorkerOAuthService {
     error: string,
     description: string,
   ): Response {
-    if (!redirectUri) return json({ error, error_description: description }, 400);
+    // Only called after redirectUri was matched against the client's registration.
     const url = new URL(redirectUri);
     url.searchParams.set("error", error);
     url.searchParams.set("error_description", description);
     if (state) url.searchParams.set("state", state);
-    return Response.redirect(url.toString(), 302);
+    return redirect(url.toString());
+  }
+
+  private authorizeErrorPage(description: string): Response {
+    return html(
+      400,
+      layout(
+        "Authorization error",
+        `<div class="card">
+          ${brand()}
+          <h1>Authorization error</h1>
+          <div class="error">${esc(description)}</div>
+        </div>`,
+      ),
+    );
   }
 }

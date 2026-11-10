@@ -1,7 +1,39 @@
-import { randomUUID } from "node:crypto";
-import { Router } from "express";
-import { hashPassword, verifyPassword, type MemoryStore } from "./store.js";
-import { brand, esc, layout } from "./pages.js";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { Router, type Request, type Response } from "express";
+import {
+  bindingCookieName,
+  hashPassword,
+  readCookie,
+  redirectDisplay,
+  verifyPassword,
+  type MemoryStore,
+  type PendingAuthorization,
+} from "./store.js";
+import {
+  AUTH_PAGE_HEADERS,
+  brand,
+  esc,
+  layout,
+  loginConsentPage,
+  loginLinkInvalidPage,
+} from "./pages.js";
+
+function sendHtml(res: Response, status: number, body: string): void {
+  res.status(status).set(AUTH_PAGE_HEADERS).type("html").send(body);
+}
+
+/** True if the request comes from the browser that started /authorize. */
+function isBoundBrowser(req: Request, loginId: string, pending: PendingAuthorization): boolean {
+  const nonce = readCookie(req.headers.cookie, bindingCookieName(loginId));
+  if (!nonce) return false;
+  const actual = createHash("sha256").update(nonce).digest();
+  const expected = Buffer.from(pending.browserBindingHash, "hex");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+function clearBindingCookie(res: Response, loginId: string): void {
+  res.append("Set-Cookie", `${bindingCookieName(loginId)}=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0`);
+}
 
 /**
  * Custom login UI and user signup routes that pair with the SDK's OAuth router.
@@ -13,51 +45,68 @@ export function oauthUiRoutes(
 ): Router {
   const router = Router();
 
-  // GET /oauth/login — sign-in form shown during /authorize.
+  // GET /oauth/login — sign-in + consent form shown during /authorize.
   router.get("/oauth/login", (req, res) => {
     const loginId = String(req.query.login_id ?? "");
-    const email = String(req.query.email ?? "");
-    const signedUp = String(req.query.signed_up ?? "") === "1";
     const pending = store.pendingAuthorizations.get(loginId);
-    if (!pending) {
-      return res.status(400).send("Invalid or expired login session. Please start the flow again.");
+    if (!pending || !isBoundBrowser(req, loginId, pending)) {
+      return sendHtml(res, 400, loginLinkInvalidPage());
     }
-    res.type("html").send(
-      layout(
-        "Sign in",
-        `<div class="card">
-          ${brand()}
-          <h1>Sign in</h1>
-          <p class="lead">Sign in to continue.</p>
-          ${signedUp ? '<div class="note">Account created — please sign in.</div>' : ""}
-          <form method="POST" action="/oauth/login">
-            <input type="hidden" name="login_id" value="${esc(loginId)}" />
-            <label for="email">Email</label>
-            <input id="email" name="email" type="email" value="${esc(email)}" placeholder="you@example.com" required />
-            <label for="password">Password</label>
-            <input id="password" name="password" type="password" placeholder="••••••••" required />
-            <button class="btn" type="submit">Sign in</button>
-          </form>
-          <p class="foot">No account? <a href="/oauth/signup?login_id=${encodeURIComponent(loginId)}">Create one</a></p>
-        </div>`,
-      ),
+    const client = store.clients.get(pending.clientId);
+    sendHtml(
+      res,
+      200,
+      loginConsentPage({
+        loginId,
+        csrfToken: pending.csrfToken,
+        clientName: client?.client_name,
+        redirectTo: redirectDisplay(pending.redirectUri),
+        email: String(req.query.email ?? ""),
+        signedUp: String(req.query.signed_up ?? "") === "1",
+      }),
     );
   });
 
-  // POST /oauth/login — validates credentials and redirects back with the code.
+  // POST /oauth/login — validates credentials + consent and redirects back with the code.
   router.post("/oauth/login", (req, res) => {
     const loginId = String(req.body?.login_id ?? "");
     const email = String(req.body?.email ?? "").trim().toLowerCase();
     const password = String(req.body?.password ?? "");
     const pending = store.pendingAuthorizations.get(loginId);
-    if (!pending) {
-      return res.status(400).send("Invalid or expired login session.");
+    if (
+      !pending ||
+      !isBoundBrowser(req, loginId, pending) ||
+      String(req.body?.csrf_token ?? "") !== pending.csrfToken
+    ) {
+      return sendHtml(res, 400, loginLinkInvalidPage());
+    }
+
+    if (String(req.body?.decision ?? "") === "deny") {
+      store.pendingAuthorizations.delete(loginId);
+      clearBindingCookie(res, loginId);
+      const denied = new URL(pending.redirectUri);
+      denied.searchParams.set("error", "access_denied");
+      denied.searchParams.set("error_description", "The user denied the request");
+      if (pending.state) denied.searchParams.set("state", pending.state);
+      return res.redirect(denied.toString());
     }
 
     const userId = store.usersByEmail.get(email);
     const user = userId ? store.users.get(userId) : undefined;
     if (!user || !verifyPassword(password, user.salt, user.passwordHash)) {
-      return res.status(401).send("Invalid email or password.");
+      return sendHtml(
+        res,
+        401,
+        layout(
+          "Sign in failed",
+          `<div class="card">
+            ${brand()}
+            <h1>Sign in failed</h1>
+            <div class="error">Invalid email or password.</div>
+            <a class="btn" href="/oauth/login?login_id=${encodeURIComponent(loginId)}">Try again</a>
+          </div>`,
+        ),
+      );
     }
 
     const code = createAuthCode(store, {
@@ -67,6 +116,7 @@ export function oauthUiRoutes(
       userId: user.id,
     });
     store.pendingAuthorizations.delete(loginId);
+    clearBindingCookie(res, loginId);
 
     const redirect = new URL(pending.redirectUri);
     redirect.searchParams.set("code", code);
@@ -77,7 +127,9 @@ export function oauthUiRoutes(
   // GET /oauth/signup — account creation form.
   router.get("/oauth/signup", (req, res) => {
     const loginId = String(req.query.login_id ?? "");
-    res.type("html").send(
+    sendHtml(
+      res,
+      200,
       layout(
         "Sign up",
         `<div class="card">
@@ -128,7 +180,9 @@ export function oauthUiRoutes(
     });
     const data = (await resp.json().catch(() => null)) as { data?: { api_key?: string }; error?: string } | null;
     if (!resp.ok || !data?.data?.api_key) {
-      return res.status(resp.status || 502).send(data?.error ?? "Failed to create your API key. Please try again later.");
+      // Upstream text is untrusted: escape it before putting it in HTML.
+      const message = typeof data?.error === "string" ? data.error : "Failed to create your API key. Please try again later.";
+      return sendHtml(res, resp.ok ? 502 : resp.status, layout("Sign up failed", `<div class="card">${brand()}<h1>Sign up failed</h1><div class="error">${esc(message)}</div></div>`));
     }
 
     const { salt, hash } = hashPassword(password);
@@ -150,12 +204,11 @@ export function oauthUiRoutes(
     res.redirect(redirect.toString());
   });
 
-  // POST /auth/register — create a user account (mints a Druk Asia key if none supplied).
+  // POST /auth/register — create a user account and mint its Druk Asia key.
   router.post("/auth/register", async (req, res) => {
     const email = String(req.body?.email ?? "").trim().toLowerCase();
     const password = String(req.body?.password ?? "");
     const fullname = String(req.body?.fullname ?? "").trim();
-    const providedKey = String(req.body?.drukasia_api_key ?? "").trim();
 
     if (!email || !password || !fullname) {
       return res.status(400).json({ error: "email, password and fullname are required" });
@@ -164,8 +217,9 @@ export function oauthUiRoutes(
       return res.status(409).json({ error: "An account with this email already exists" });
     }
 
-    let apiKey = providedKey;
-    if (!apiKey) {
+    // A caller-supplied Druk Asia key is deliberately not accepted.
+    let apiKey: string;
+    {
       const upstream = upstreamBaseUrl.replace(/\/+$/, "");
       const resp = await fetch(`${upstream}/v1/auth/bots/register`, {
         method: "POST",

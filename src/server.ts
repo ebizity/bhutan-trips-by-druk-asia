@@ -22,7 +22,14 @@ const SERVER_VERSION = "1.0.0";
 
 const store = new MemoryStore();
 const issuerUrl = new URL(PUBLIC_BASE_URL);
-const provider = new OAuthProvider(store, issuerUrl);
+let provider: OAuthProvider;
+try {
+  provider = new OAuthProvider(store, issuerUrl);
+} catch (err) {
+  // Fail closed: refuse to start without a strong token-signing secret.
+  console.error(`Fatal: ${err instanceof Error ? err.message : err}`);
+  process.exit(1);
+}
 
 const app = express();
 app.use(express.json());
