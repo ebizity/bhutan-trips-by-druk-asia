@@ -5,6 +5,7 @@ import { registerTools } from "./tools.js";
 import { KvStore, type KvNamespaceLike } from "./oauth/kvStore.js";
 import { WorkerOAuthService, normalizeBaseUrl } from "./oauth/workerAuth.js";
 import { RateLimiter } from "./oauth/rateLimit.js";
+import { DOCS_HTML } from "./docs.js";
 
 const SERVER_NAME = "Bhutan Trips by Druk Asia";
 const SERVER_VERSION = "1.0.0";
@@ -59,6 +60,13 @@ export async function fetchHandler(request: Request, env: WorkerEnv): Promise<Re
 
   if (request.method === "GET" && url.pathname === "/health") {
     return json({ ok: true, service: SERVER_NAME });
+  }
+
+  // Public documentation page.
+  if (request.method === "GET" && (url.pathname === "/docs" || url.pathname === "/docs/")) {
+    return new Response(DOCS_HTML, {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
   }
 
   const baseUrl = (env.DRUKASIA_API_BASE_URL ?? "https://api.bhutan.pro").replace(/\/+$/, "");

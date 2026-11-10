@@ -92,6 +92,7 @@ key. Keys never leave the server.
 ## Links
 
 - [Druk Asia](https://www.drukasia.com)
+- [Documentation](https://mcp.drukasia.com/docs)
 - [LobeHub Marketplace](https://lobehub.com/mcp/ebizity-bhutan-trips-by-druk-asia)
 - [MCP Registry](https://registry.modelcontextprotocol.io)
 - [Model Context Protocol](https://modelcontextprotocol.io)
