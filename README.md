@@ -75,61 +75,6 @@ The server uses **OAuth 2.1** (authorization code + PKCE). Clients log in and re
 short-lived access token; the server maps that token to the user's stored Druk Asia API
 key. Keys never leave the server.
 
-## Self-hosting
-
-You can run the server yourself instead of using the hosted endpoint.
-
-### Prerequisites
-
-- Node.js >= 18.18
-
-### stdio
-
-```bash
-git clone https://github.com/ebizity/bhutan-trips-by-druk-asia.git
-cd bhutan-trips-by-druk-asia
-npm install
-npm run build
-```
-
-Add it to your MCP client:
-
-```json
-{
-  "mcpServers": {
-    "bhutan-trips-by-druk-asia": {
-      "command": "node",
-      "args": ["dist/index.js"],
-      "env": {
-        "DRUKASIA_API_KEY": "your-api-key"
-      }
-    }
-  }
-}
-```
-
-### HTTP server
-
-```bash
-npm run start:http
-```
-
-Serves the Streamable HTTP endpoint at `http://localhost:3000/mcp` (POST) with OAuth.
-
-### Docker
-
-```bash
-docker build -t bhutan-trips-by-druk-asia .
-docker run -p 3000:3000 bhutan-trips-by-druk-asia
-```
-
-### Cloudflare Worker
-
-```bash
-npx wrangler secret put JWT_SECRET
-npm run deploy
-```
-
 ## Configuration
 
 | Variable | Required | Default | Description |
