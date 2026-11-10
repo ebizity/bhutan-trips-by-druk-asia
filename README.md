@@ -58,6 +58,9 @@ self-serve and your Druk Asia API key is created automatically — you never han
 | `create_payment` | `POST /v1/da-payments` | Create an Airwallex payment |
 | `get_payment_status` | `POST /v1/da-payments/status` | Check whether a payment succeeded |
 
+> **Read vs write:** Most tools are read-only. `create_member`, `create_booking`,
+> `update_booking`, and `create_payment` write real data (members, bookings, payments).
+
 ## Example
 
 > *"Find 7-day cultural itineraries for 2 adults in October 2026, then check flights
@@ -72,11 +75,78 @@ The server uses **OAuth 2.1** (authorization code + PKCE). Clients log in and re
 short-lived access token; the server maps that token to the user's stored Druk Asia API
 key. Keys never leave the server.
 
+## Self-hosting
+
+You can run the server yourself instead of using the hosted endpoint.
+
+### Prerequisites
+
+- Node.js >= 18.18
+
+### stdio
+
+```bash
+git clone https://github.com/ebizity/bhutan-trips-by-druk-asia.git
+cd bhutan-trips-by-druk-asia
+npm install
+npm run build
+```
+
+Add it to your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "bhutan-trips-by-druk-asia": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "env": {
+        "DRUKASIA_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+### HTTP server
+
+```bash
+npm run start:http
+```
+
+Serves the Streamable HTTP endpoint at `http://localhost:3000/mcp` (POST) with OAuth.
+
+### Docker
+
+```bash
+docker build -t bhutan-trips-by-druk-asia .
+docker run -p 3000:3000 bhutan-trips-by-druk-asia
+```
+
+### Cloudflare Worker
+
+```bash
+npx wrangler secret put JWT_SECRET
+npm run deploy
+```
+
+## Configuration
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `DRUKASIA_API_KEY` | stdio only | — | Agent Bot API key, sent as the `x-api-key` header |
+| `DRUKASIA_API_BASE_URL` | no | `https://api.bhutan.pro` | Base URL of the Druk Asia v1 API |
+| `MCP_PUBLIC_BASE_URL` | hosted | request origin | Public base URL used in OAuth metadata |
+| `CORS_ORIGINS` | no | allow all | Comma-separated browser origins allowed to call the API |
+| `JWT_SECRET` | hosted | dev fallback | OAuth token-signing secret (`wrangler secret put JWT_SECRET`) |
+
+## License
+
+[MIT](LICENSE) © Druk Asia
+
 ## Links
 
 - [Druk Asia](https://www.drukasia.com)
+- [LobeHub Marketplace](https://lobehub.com/mcp/ebizity-bhutan-trips-by-druk-asia)
+- [MCP Registry](https://registry.modelcontextprotocol.io)
 - [Model Context Protocol](https://modelcontextprotocol.io)
-
----
-
-© Druk Asia. All rights reserved.
